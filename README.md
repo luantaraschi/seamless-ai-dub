@@ -82,6 +82,33 @@ Saída esperada:
 - Saída: `parte2_DUBLADO.mp4`
 - Comportamento: preserva áudio original em baixo volume e sobrepõe dublagem sincronizada.
 
+## Interface Web (Gradio)
+
+A partir da versão atual, o projeto conta com uma interface web interativa via **Gradio**, disponível em `app.py`.
+
+### Como usar a interface web
+
+1. Instale as dependências (inclui `gradio`):
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+2. Inicie a interface:
+   ```powershell
+   python app.py
+   ```
+
+3. Acesse no navegador: [http://localhost:7860](http://localhost:7860)
+
+### Funcionalidades da UI
+- **Upload de vídeo** `.mp4` direto pelo navegador.
+- **Campo de API Key** do OpenRouter (obrigatório).
+- **Toggle ElevenLabs** — ativa campos de chave e Voice ID para voz premium; usa Edge-TTS como fallback automático.
+- **Logs em tempo real** exibidos na tela durante o processamento.
+- **Download do vídeo dublado** ao final do processo.
+
+> Para uso via linha de comando (sem interface), continue usando `python dublador.py` conforme descrito na seção **Execução** acima.
+
 ## Pontos de evolução
 - Interface CLI (`argparse`) para trocar modelo, idioma e volume sem editar código.
 - Logs estruturados por segmento para auditoria de qualidade.
