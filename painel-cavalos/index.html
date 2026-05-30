@@ -395,10 +395,10 @@ function openDB(){
   });
 }
 function tx(store,mode){return db.transaction(store,mode).objectStore(store);}
-function dbAll(store){return new Promise(r=>{const o=tx(store,"readonly").getAll();o.onsuccess=()=>r(o.result||[]);o.onerror=()=>r([]);});}
-function dbPut(store,obj){return new Promise(r=>{const o=tx(store,"readwrite").put(obj);o.onsuccess=()=>r();o.onerror=()=>r();});}
-function dbDel(store,id){return new Promise(r=>{const o=tx(store,"readwrite").delete(id);o.onsuccess=()=>r();o.onerror=()=>r();});}
-function dbClear(store){return new Promise(r=>{const o=tx(store,"readwrite").clear();o.onsuccess=()=>r();o.onerror=()=>r();});}
+function dbAll(store){return new Promise((res,rej)=>{const o=tx(store,"readonly").getAll();o.onsuccess=()=>res(o.result||[]);o.onerror=()=>rej(o.error);});}
+function dbPut(store,obj){return new Promise((res,rej)=>{const o=tx(store,"readwrite").put(obj);o.onsuccess=()=>res();o.onerror=()=>rej(o.error);});}
+function dbDel(store,id){return new Promise((res,rej)=>{const o=tx(store,"readwrite").delete(id);o.onsuccess=()=>res();o.onerror=()=>rej(o.error);});}
+function dbClear(store){return new Promise((res,rej)=>{const o=tx(store,"readwrite").clear();o.onsuccess=()=>res();o.onerror=()=>rej(o.error);});}
 
 async function loadAll(){
   state.cavalos = (await dbAll("cavalos")).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -563,9 +563,9 @@ function findMatches(p){
     // pelagem
     if(p.pelagens&&p.pelagens.length){ total++; if(c.pelagem&&p.pelagens.some(x=>x.toLowerCase()===c.pelagem.toLowerCase())){ok++;reasons.push("pelagem");} }
     // preço
-    if(p.precoMin||p.precoMax){ total++; const pr=Number(c.preco)||0; const min=Number(p.precoMin)||0,max=Number(p.precoMax)||Infinity; if(pr>=min&&pr<=max){ok++;reasons.push("preço");} }
+    if(p.precoMin||p.precoMax){ total++; const pr=Number(c.preco)||0; const min=p.precoMin?Number(p.precoMin):0,max=p.precoMax?Number(p.precoMax):Infinity; if(pr>=min&&pr<=max){ok++;reasons.push("preço");} }
     // idade
-    if(p.idadeMin||p.idadeMax){ total++; const id=Number(c.idade)||0; const min=Number(p.idadeMin)||0,max=Number(p.idadeMax)||Infinity; if(c.idade!=null&&c.idade!==""&&id>=min&&id<=max){ok++;reasons.push("idade");} }
+    if(p.idadeMin||p.idadeMax){ total++; const id=Number(c.idade)||0; const min=p.idadeMin?Number(p.idadeMin):0,max=p.idadeMax?Number(p.idadeMax):Infinity; if(c.idade!=null&&c.idade!==""&&id>=min&&id<=max){ok++;reasons.push("idade");} }
 
     if(total===0){ // procura sem critérios: tudo combina como "aberto"
       res.push({cavalo:c,score:0.5,total:0,ok:0,kind:"aberto",reasons:[]}); continue;
@@ -772,8 +772,10 @@ async function saveCavalo(){
     createdAt: ui.editId ? (state.cavalos.find(x=>x.id===ui.editId)||{}).createdAt||Date.now() : Date.now()
   };
   if(!obj.nome && !obj.fotos.length){ toast("Dê um nome ou adicione uma foto 🐴"); return; }
-  await dbPut("cavalos",obj);
-  await loadAll(); closeSheet(); render(); toast(ui.editId?"Cavalo atualizado ✅":"Cavalo cadastrado ✅");
+  try{
+    await dbPut("cavalos",obj);
+    await loadAll(); closeSheet(); render(); toast(ui.editId?"Cavalo atualizado ✅":"Cavalo cadastrado ✅");
+  }catch(err){ console.error(err); alert("Não foi possível salvar. O armazenamento do aparelho pode estar cheio — tente usar menos fotos ou fotos menores."); }
 }
 async function saveProcura(){
   const pelagens=[...document.querySelectorAll('input[name="f_pel"]:checked')].map(x=>x.value);
@@ -794,14 +796,19 @@ async function saveProcura(){
     createdAt: ui.editId ? (state.procuras.find(x=>x.id===ui.editId)||{}).createdAt||Date.now() : Date.now()
   };
   if(!obj.nome){ toast("Informe o nome do interessado 🙋"); return; }
-  await dbPut("procuras",obj);
-  await loadAll(); closeSheet(); render(); toast(ui.editId?"Procura atualizada ✅":"Procura cadastrada ✅");
+  try{
+    await dbPut("procuras",obj);
+    await loadAll(); closeSheet(); render(); toast(ui.editId?"Procura atualizada ✅":"Procura cadastrada ✅");
+  }catch(err){ console.error(err); alert("Não foi possível salvar a procura. Tente novamente."); }
 }
 async function del(type,id){
   const store=type==="cavalo"?"cavalos":"procuras";
   const item=(state[store]).find(x=>x.id===id);
-  if(!confirm("Apagar "+(type==="cavalo"?"este cavalo":"esta procura")+" definitivamente?"))return;
-  await dbDel(store,id); await loadAll(); render(); toast("Removido");
+  const nome=item?(item.nome||"Sem nome"):"";
+  const msg=type==="cavalo"?`Apagar o cavalo "${nome}" definitivamente?`:`Apagar a procura de "${nome}" definitivamente?`;
+  if(!confirm(msg))return;
+  try{ await dbDel(store,id); await loadAll(); render(); toast("Removido"); }
+  catch(err){ console.error(err); toast("Erro ao remover"); }
 }
 
 /* ---------------- BACKUP ---------------- */
@@ -822,18 +829,23 @@ function importData(e){
       const data=JSON.parse(ev.target.result);
       if(data.app!=="haras-manager"&&!data.cavalos&&!data.procuras) throw new Error("formato");
       if(!confirm("Importar este backup? Os dados atuais serão substituídos pelos do arquivo.")) return;
+      // só aceita IDs alfanuméricos (gerados pelo app) — evita XSS via onclick interpolado
+      const idOk=/^[a-z0-9]+$/i;
+      const cavalosValidos=(data.cavalos||[]).filter(c=>c&&typeof c.id==="string"&&idOk.test(c.id));
+      const procurasValidas=(data.procuras||[]).filter(p=>p&&typeof p.id==="string"&&idOk.test(p.id));
       await dbClear("cavalos"); await dbClear("procuras");
-      for(const c of (data.cavalos||[])) await dbPut("cavalos",c);
-      for(const p of (data.procuras||[])) await dbPut("procuras",p);
+      for(const c of cavalosValidos) await dbPut("cavalos",c);
+      for(const p of procurasValidas) await dbPut("procuras",p);
       await loadAll(); render(); go("inicio"); toast("Backup importado ✅");
-    }catch(err){ alert("Arquivo inválido. Selecione um backup gerado por este painel."); }
+    }catch(err){ console.error(err); alert("Arquivo inválido ou não foi possível importar. Selecione um backup gerado por este painel."); }
   };
   reader.readAsText(f);
 }
 async function wipeAll(){
   if(!confirm("Tem certeza? Isso apaga TODOS os cavalos e procuras deste aparelho. Não dá pra desfazer."))return;
   if(!confirm("Última confirmação: apagar tudo?"))return;
-  await dbClear("cavalos"); await dbClear("procuras"); await loadAll(); render(); toast("Tudo apagado");
+  try{ await dbClear("cavalos"); await dbClear("procuras"); await loadAll(); render(); toast("Tudo apagado"); }
+  catch(err){ console.error(err); toast("Erro ao apagar"); }
 }
 
 /* ---------------- Listeners ---------------- */
@@ -845,9 +857,15 @@ document.addEventListener("change",e=>{ if(e.target.name==="f_sexo"){const cf=$(
 
 /* ---------------- Boot ---------------- */
 (async function init(){
-  try{ await openDB(); await loadAll(); }
-  catch(err){ console.error(err); alert("Não foi possível abrir o banco de dados local. Tente outro navegador."); }
-  render(); go("inicio");
+  try{
+    await openDB();
+    await loadAll();
+    render();
+    go("inicio");
+  }catch(err){
+    console.error(err);
+    alert("Não foi possível abrir o banco de dados local. Tente outro navegador.");
+  }
 })();
 </script>
 </body>
