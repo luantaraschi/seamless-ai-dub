@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3d2b1f">
+<meta name="description" content="Painel para gestão de compra e venda de cavalos">
+<title>Haras Manager — Gestão de Cavalos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐴</text></svg>">
+<!-- PWA: permite 'Adicionar à tela inicial' no celular -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Haras%20Manager%22%2C%22short_name%22%3A%22Haras%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f5efe6%22%2C%22theme_color%22%3A%22%233d2b1f%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%2520100%2520100%2527%253E%253Ctext%2520y%253D%2527.9em%2527%2520font-size%253D%252790%2527%253E%25F0%259F%2590%25B4%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<style>
+  :root{
+    --bg:#f5efe6;
+    --surface:#ffffff;
+    --surface-2:#faf6f0;
+    --ink:#2b2017;
+    --ink-soft:#6b5d4f;
+    --line:#e6dccd;
+    --brand:#6b4226;        /* sela/couro */
+    --brand-ink:#3d2b1f;
+    --accent:#7a8b5a;       /* verde pasto */
+    --gold:#c79a3c;
+    --ok:#2e7d4f;
+    --ok-bg:#e6f3ea;
+    --warn:#b5862b;
+    --warn-bg:#fbf0d8;
+    --sold:#8a8a8a;
+    --sold-bg:#eeeae4;
+    --danger:#b03a2e;
+    --shadow:0 4px 16px rgba(61,43,31,.10);
+    --shadow-lg:0 12px 34px rgba(61,43,31,.22);
+    --radius:16px;
+    --radius-sm:11px;
+    --maxw:680px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:calc(82px + env(safe-area-inset-bottom));
+  }
+  .app{max-width:var(--maxw);margin:0 auto;min-height:100vh;background:var(--bg)}
+
+  /* ---------- Top bar ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    background:linear-gradient(135deg,var(--brand-ink),var(--brand));
+    color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    box-shadow:var(--shadow);
+  }
+  .topbar h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+  .topbar h1 small{font-weight:500;opacity:.8;font-size:12px}
+  .topbar .sub{margin:2px 0 0;font-size:12.5px;opacity:.78}
+
+  main{padding:14px 14px 24px}
+  .view{display:none;animation:fade .25s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- Resumo / stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+  .stat{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:13px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden
+  }
+  .stat .n{font-size:25px;font-weight:800;line-height:1.1}
+  .stat .l{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .stat .ic{position:absolute;right:10px;top:9px;font-size:20px;opacity:.35}
+  .stat.full{grid-column:1/-1}
+  .stat.full .n{font-size:22px;color:var(--brand)}
+
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 10px}
+  .section-title h2{font-size:15px;margin:0;font-weight:800;color:var(--brand-ink);letter-spacing:.3px;text-transform:uppercase}
+  .section-title .count{font-size:12px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);padding:2px 9px;border-radius:20px}
+
+  /* ---------- Cards (cavalos) ---------- */
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px
+  }
+  .card .media{position:relative;background:var(--surface-2);aspect-ratio:16/10;overflow:hidden}
+  .card .media img{width:100%;height:100%;object-fit:cover;display:block}
+  .card .media .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:46px;color:#cdbfab;opacity:.5}
+  .card .media .badge{
+    position:absolute;top:10px;left:10px;font-size:11.5px;font-weight:800;
+    padding:5px 11px;border-radius:20px;backdrop-filter:blur(4px);
+  }
+  .card .media .count-photos{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px}
+  .badge.disponivel{background:var(--ok-bg);color:var(--ok)}
+  .badge.reservado{background:var(--warn-bg);color:var(--warn)}
+  .badge.vendido{background:var(--sold-bg);color:var(--sold)}
+
+  .card .body{padding:12px 14px}
+  .card .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card .name{font-size:17px;font-weight:800;margin:0}
+  .card .price{font-size:16px;font-weight:800;color:var(--brand);white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{font-size:11.5px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);padding:3px 9px;border-radius:20px;display:inline-flex;gap:4px;align-items:center}
+  .chip.sex-egua{background:#fbeef2;border-color:#f3d6e0;color:#b14b73}
+  .chip.sex-macho{background:#eaf0f6;border-color:#d2e0ee;color:#3f6695}
+  .card .obs{margin:9px 0 0;font-size:13px;color:var(--ink-soft)}
+  .card .owner{margin-top:8px;font-size:12px;color:var(--ink-soft)}
+
+  .card-actions{display:flex;gap:8px;border-top:1px solid var(--line);padding:9px 12px;background:var(--surface-2)}
+  .card-actions button{flex:1}
+
+  /* ---------- Buttons ---------- */
+  button{font-family:inherit;cursor:pointer;border:none;font-size:14px}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:11px 14px;border-radius:var(--radius-sm);font-weight:700;font-size:14px;
+    background:var(--surface);border:1px solid var(--line);color:var(--ink);transition:.12s;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.wa{background:#25d366;color:#fff;border-color:#25d366}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:8px 10px;font-size:12.5px;font-weight:700}
+  .btn.danger{color:var(--danger);border-color:#eccac5}
+  .btn.block{width:100%}
+
+  /* ---------- Filtros / busca ---------- */
+  .toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+  .search{flex:1;min-width:160px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:0 12px}
+  .search input{border:none;outline:none;background:transparent;padding:11px 0;width:100%;font-size:14px;color:var(--ink)}
+  .filterpills{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;-webkit-overflow-scrolling:touch}
+  .filterpills::-webkit-scrollbar{display:none}
+  .pill{white-space:nowrap;font-size:13px;font-weight:600;padding:7px 13px;border-radius:20px;background:var(--surface);border:1px solid var(--line);color:var(--ink-soft)}
+  .pill.active{background:var(--brand-ink);color:#fff;border-color:var(--brand-ink)}
+
+  /* ---------- Empty ---------- */
+  .empty{text-align:center;padding:46px 20px;color:var(--ink-soft)}
+  .empty .e-ic{font-size:50px;margin-bottom:8px}
+  .empty h3{margin:0 0 4px;color:var(--ink)}
+  .empty p{margin:0 0 16px;font-size:14px}
+
+  /* ---------- Procura card ---------- */
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:13px 14px;margin-bottom:12px}
+  .pcard .ptop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .pcard .pname{font-weight:800;font-size:16px;margin:0;display:flex;align-items:center;gap:7px}
+  .pstatus{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px}
+  .pstatus.ativo{background:var(--ok-bg);color:var(--ok)}
+  .pstatus.atendido{background:#e8eef6;color:#3f6695}
+  .pstatus.desistiu{background:var(--sold-bg);color:var(--sold)}
+  .match-line{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+  .match-line b{color:var(--brand)}
+  .mini-match{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2);margin-top:7px}
+  .mini-match img,.mini-match .mph{width:46px;height:46px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:22px}
+  .mini-match .mm-info{flex:1;min-width:0}
+  .mini-match .mm-info .t{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini-match .mm-info .s{font-size:11.5px;color:var(--ink-soft)}
+  .matchtag{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:20px}
+  .matchtag.total{background:var(--ok-bg);color:var(--ok)}
+  .matchtag.parcial{background:var(--warn-bg);color:var(--warn)}
+
+  /* ---------- Bottom nav ---------- */
+  nav.bottom{
+    position:fixed;bottom:0;left:0;right:0;z-index:50;
+    background:var(--surface);border-top:1px solid var(--line);
+    display:flex;max-width:var(--maxw);margin:0 auto;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -4px 20px rgba(61,43,31,.07)
+  }
+  nav.bottom button{flex:1;background:none;border:none;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-soft);font-size:10.5px;font-weight:600}
+  nav.bottom button .ni{font-size:21px;line-height:1}
+  nav.bottom button.active{color:var(--brand)}
+  nav.bottom button.active .ni{transform:translateY(-1px)}
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;right:max(16px,calc((100vw - var(--maxw))/2 + 16px));
+    bottom:calc(78px + env(safe-area-inset-bottom));z-index:55;
+    width:58px;height:58px;border-radius:50%;background:var(--brand);color:#fff;
+    font-size:30px;font-weight:300;box-shadow:var(--shadow-lg);border:none;display:none;
+    align-items:center;justify-content:center;line-height:1
+  }
+  .fab.show{display:flex}
+  .fab:active{transform:scale(.93)}
+
+  /* ---------- Modal / sheet ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(43,32,23,.5);z-index:60;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+  .overlay.show{display:flex}
+  .sheet{
+    background:var(--bg);width:100%;max-width:var(--maxw);max-height:92vh;overflow-y:auto;
+    border-radius:22px 22px 0 0;box-shadow:var(--shadow-lg);
+    animation:slideup .28s cubic-bezier(.2,.8,.2,1);padding-bottom:calc(20px + env(safe-area-inset-bottom))
+  }
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-head{position:sticky;top:0;background:var(--bg);padding:14px 16px 10px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;z-index:2}
+  .sheet-head h2{margin:0;font-size:17px;font-weight:800}
+  .sheet-head .x{background:var(--surface);border:1px solid var(--line);width:34px;height:34px;border-radius:50%;font-size:18px;color:var(--ink-soft)}
+  .sheet-body{padding:14px 16px}
+  .grip{width:38px;height:4px;background:var(--line);border-radius:3px;margin:8px auto 0}
+
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px;color:var(--brand-ink)}
+  .field .hint{font-weight:500;color:var(--ink-soft);font-size:11.5px}
+  input[type=text],input[type=number],input[type=tel],select,textarea{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+    font-size:15px;font-family:inherit;background:var(--surface);color:var(--ink);outline:none
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--brand)}
+  textarea{resize:vertical;min-height:62px}
+  .row{display:flex;gap:10px}
+  .row>.field{flex:1}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg label{flex:1;min-width:0}
+  .seg input{position:absolute;opacity:0;pointer-events:none}
+  .seg span{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;font-weight:600;color:var(--ink-soft);background:var(--surface);cursor:pointer}
+  .seg input:checked + span{background:var(--brand-ink);color:#fff;border-color:var(--brand-ink)}
+  .seg.compact label{flex:0 1 auto}
+
+  /* fotos uploader */
+  .photos{display:flex;gap:8px;flex-wrap:wrap}
+  .photo-thumb{position:relative;width:74px;height:74px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover}
+  .photo-thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .add-photo{width:74px;height:74px;border:2px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink-soft);font-size:22px;background:var(--surface)}
+  .add-photo small{font-size:10px;font-weight:600}
+
+  /* lightbox */
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:80;display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+  .lightbox.show{display:flex}
+  .lightbox img{max-width:100%;max-height:78vh;border-radius:8px;object-fit:contain}
+  .lightbox .lb-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;background:rgba(255,255,255,.15);color:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:20px}
+  .lightbox .lb-nav{display:flex;gap:14px;margin-top:16px}
+  .lightbox .lb-nav button{background:rgba(255,255,255,.15);color:#fff;border:none;width:48px;height:48px;border-radius:50%;font-size:22px}
+
+  /* toast */
+  .toast{position:fixed;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--brand-ink);color:#fff;padding:11px 18px;border-radius:30px;font-size:13.5px;font-weight:600;z-index:90;opacity:0;transition:.3s;pointer-events:none;box-shadow:var(--shadow-lg);max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .helpbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;font-size:13.5px;color:var(--ink-soft);box-shadow:var(--shadow)}
+  .helpbox b{color:var(--ink)}
+  .danger-zone{margin-top:8px}
+  hr.sep{border:none;border-top:1px solid var(--line);margin:18px 0}
+  .link-btn{background:none;border:none;color:var(--brand);font-weight:700;text-decoration:underline;padding:0;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <h1>🐴 Haras Manager <small id="topSub">controle de negócios</small></h1>
+    <p class="sub" id="topbarSub">Seu controle de compra e venda de cavalos</p>
+  </header>
+
+  <main>
+    <!-- ===================== INÍCIO ===================== -->
+    <section class="view active" id="view-inicio">
+      <div class="stats">
+        <div class="stat"><div class="ic">🐎</div><div class="n" id="st-disp">0</div><div class="l">Disponíveis</div></div>
+        <div class="stat"><div class="ic">⏳</div><div class="n" id="st-res">0</div><div class="l">Reservados</div></div>
+        <div class="stat"><div class="ic">✅</div><div class="n" id="st-vend">0</div><div class="l">Vendidos</div></div>
+        <div class="stat"><div class="ic">🔎</div><div class="n" id="st-proc">0</div><div class="l">Procuras ativas</div></div>
+        <div class="stat full"><div class="ic">💰</div><div class="n" id="st-total">R$ 0</div><div class="l">Valor do estoque disponível</div></div>
+      </div>
+
+      <div class="section-title"><h2>🔥 Combinações quentes</h2></div>
+      <div id="hotMatches"></div>
+    </section>
+
+    <!-- ===================== CAVALOS ===================== -->
+    <section class="view" id="view-cavalos">
+      <div class="toolbar">
+        <div class="search">🔎<input type="text" id="searchCavalos" placeholder="Buscar por nome, raça, pelagem..."></div>
+      </div>
+      <div class="filterpills" id="statusFilter">
+        <button class="pill active" data-f="todos">Todos</button>
+        <button class="pill" data-f="disponivel">Disponíveis</button>
+        <button class="pill" data-f="reservado">Reservados</button>
+        <button class="pill" data-f="vendido">Vendidos</button>
+        <button class="pill" data-f="egua">Éguas</button>
+        <button class="pill" data-f="macho">Machos</button>
+      </div>
+      <div id="cavalosList"></div>
+    </section>
+
+    <!-- ===================== PROCURAS ===================== -->
+    <section class="view" id="view-procuras">
+      <div class="toolbar">
+        <div class="search">🔎<input type="text" id="searchProcuras" placeholder="Buscar interessado..."></div>
+      </div>
+      <div class="filterpills" id="procStatusFilter">
+        <button class="pill active" data-f="todos">Todas</button>
+        <button class="pill" data-f="ativo">Ativas</button>
+        <button class="pill" data-f="atendido">Atendidas</button>
+        <button class="pill" data-f="desistiu">Desistiram</button>
+      </div>
+      <div id="procurasList"></div>
+    </section>
+
+    <!-- ===================== MATCHES ===================== -->
+    <section class="view" id="view-matches">
+      <div class="helpbox" style="margin-bottom:14px">
+        💡 Aqui cada <b>procura ativa</b> é cruzada com seus <b>cavalos disponíveis</b>.
+        <span style="color:var(--ok);font-weight:700">Match total</span> = bate tudo.
+        <span style="color:var(--warn);font-weight:700">Parcial</span> = bate parte dos critérios.
+      </div>
+      <div id="matchesList"></div>
+    </section>
+
+    <!-- ===================== AJUSTES ===================== -->
+    <section class="view" id="view-config">
+      <div class="section-title"><h2>📦 Backup dos dados</h2></div>
+      <div class="helpbox">
+        Seus dados ficam salvos <b>só neste navegador/celular</b>. Se você limpar o
+        histórico/cache do navegador, eles podem ser perdidos. Faça backups com
+        frequência — o arquivo pode ser guardado no WhatsApp, Google Drive ou e-mail.
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn primary" onclick="exportData()">⬇️ Exportar backup</button>
+          <button class="btn" onclick="document.getElementById('importFile').click()">⬆️ Importar backup</button>
+          <input type="file" id="importFile" accept="application/json" hidden onchange="importData(event)">
+        </div>
+      </div>
+
+      <div class="section-title"><h2>📲 Instalar no celular</h2></div>
+      <div class="helpbox">
+        Para ter o painel como um <b>app na tela inicial</b>:<br>
+        • <b>Android (Chrome):</b> menu ⋮ → "Adicionar à tela inicial".<br>
+        • <b>iPhone (Safari):</b> botão compartilhar → "Adicionar à Tela de Início".
+      </div>
+
+      <div class="section-title"><h2>⚠️ Zona de risco</h2></div>
+      <div class="helpbox danger-zone">
+        Apagar tudo remove permanentemente todos os cavalos e procuras deste aparelho.
+        <div style="margin-top:12px"><button class="btn danger block" onclick="wipeAll()">🗑️ Apagar todos os dados</button></div>
+      </div>
+
+      <p style="text-align:center;color:var(--ink-soft);font-size:12px;margin-top:24px">Haras Manager • dados 100% locais e privados</p>
+    </section>
+  </main>
+
+  <button class="fab" id="fab" onclick="openForm()">+</button>
+
+  <nav class="bottom">
+    <button data-view="inicio" class="active" onclick="go('inicio')"><span class="ni">🏠</span>Início</button>
+    <button data-view="cavalos" onclick="go('cavalos')"><span class="ni">🐎</span>Cavalos</button>
+    <button data-view="procuras" onclick="go('procuras')"><span class="ni">🔎</span>Procuras</button>
+    <button data-view="matches" onclick="go('matches')"><span class="ni">🔗</span>Matches</button>
+    <button data-view="config" onclick="go('config')"><span class="ni">⚙️</span>Ajustes</button>
+  </nav>
+</div>
+
+<!-- ============ SHEET (form) ============ -->
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet">
+    <div class="grip"></div>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">Novo</h2>
+      <button class="x" onclick="closeSheet()">✕</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<!-- ============ LIGHTBOX ============ -->
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <img id="lbImg" src="" alt="">
+  <div class="lb-nav">
+    <button onclick="lbStep(-1)">‹</button>
+    <button onclick="lbStep(1)">›</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========================================================================
+   Haras Manager — app de 1 arquivo. Dados em IndexedDB (offline, no aparelho).
+   ===================================================================== */
+
+const PELAGENS = ["Tordilho","Alazão","Castanho","Baio","Preto","Rosilho","Pampa","Gateado","Branco","Lobuno","Palomino","Outra"];
+const DB_NAME = "harasManagerDB", DB_VER = 1;
+let db = null;
+let state = { cavalos: [], procuras: [] };
+let ui = { view:"inicio", cavFilter:"todos", cavSearch:"", procFilter:"todos", procSearch:"", editId:null, editType:null, formPhotos:[] };
+
+/* ---------------- IndexedDB ---------------- */
+function openDB(){
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = e=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains("cavalos")) d.createObjectStore("cavalos",{keyPath:"id"});
+      if(!d.objectStoreNames.contains("procuras")) d.createObjectStore("procuras",{keyPath:"id"});
+    };
+    r.onsuccess = e=>{db=e.target.result;res();};
+    r.onerror = e=>rej(e);
+  });
+}
+function tx(store,mode){return db.transaction(store,mode).objectStore(store);}
+function dbAll(store){return new Promise(r=>{const o=tx(store,"readonly").getAll();o.onsuccess=()=>r(o.result||[]);o.onerror=()=>r([]);});}
+function dbPut(store,obj){return new Promise(r=>{const o=tx(store,"readwrite").put(obj);o.onsuccess=()=>r();o.onerror=()=>r();});}
+function dbDel(store,id){return new Promise(r=>{const o=tx(store,"readwrite").delete(id);o.onsuccess=()=>r();o.onerror=()=>r();});}
+function dbClear(store){return new Promise(r=>{const o=tx(store,"readwrite").clear();o.onsuccess=()=>r();o.onerror=()=>r();});}
+
+async function loadAll(){
+  state.cavalos = (await dbAll("cavalos")).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  state.procuras = (await dbAll("procuras")).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+}
+
+/* ---------------- Helpers ---------------- */
+const $ = s=>document.querySelector(s);
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc = s=> (s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function brl(n){ n=Number(n)||0; return "R$ "+n.toLocaleString("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+function onlyDigits(s){return (s||"").replace(/\D/g,"");}
+function waLink(num){ let d=onlyDigits(num); if(!d) return null; if(d.length<=11) d="55"+d; return "https://wa.me/"+d; }
+function sexLabel(s){return s==="egua"?"Égua":s==="macho"?"Macho":"";}
+function docLabel(d){return {manso:"🟢 Manso",intermediario:"🟡 Intermediário",bravo:"🔴 Bravo"}[d]||"";}
+
+/* ---------------- Navegação ---------------- */
+function go(v){
+  ui.view=v;
+  document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+v));
+  document.querySelectorAll("nav.bottom button").forEach(b=>b.classList.toggle("active",b.dataset.view===v));
+  const fab=$("#fab"); fab.classList.toggle("show", v==="cavalos"||v==="procuras");
+  const subs={inicio:"Seu controle de compra e venda de cavalos",cavalos:"Estoque de cavalos à venda",procuras:"Quem está buscando comprar",matches:"Cruzando procuras com seus cavalos",config:"Backup e configurações"};
+  $("#topbarSub").textContent = subs[v]||"";
+  window.scrollTo(0,0);
+  render();
+}
+
+/* ---------------- Render geral ---------------- */
+function render(){ renderStats(); renderCavalos(); renderProcuras(); renderMatches(); renderHot(); }
+
+function renderStats(){
+  const c=state.cavalos;
+  const disp=c.filter(x=>x.status==="disponivel");
+  $("#st-disp").textContent=disp.length;
+  $("#st-res").textContent=c.filter(x=>x.status==="reservado").length;
+  $("#st-vend").textContent=c.filter(x=>x.status==="vendido").length;
+  $("#st-proc").textContent=state.procuras.filter(x=>x.status==="ativo").length;
+  $("#st-total").textContent=brl(disp.reduce((s,x)=>s+(Number(x.preco)||0),0));
+}
+
+/* ---------------- CAVALOS ---------------- */
+function cavMatchesFilter(c){
+  const f=ui.cavFilter, q=ui.cavSearch.toLowerCase().trim();
+  if(f==="egua"&&c.sexo!=="egua")return false;
+  if(f==="macho"&&c.sexo!=="macho")return false;
+  if(["disponivel","reservado","vendido"].includes(f)&&c.status!==f)return false;
+  if(q){const hay=[c.nome,c.raca,c.pelagem,c.donoNome,c.obs].join(" ").toLowerCase();if(!hay.includes(q))return false;}
+  return true;
+}
+function renderCavalos(){
+  const list=$("#cavalosList");
+  const items=state.cavalos.filter(cavMatchesFilter);
+  if(!state.cavalos.length){
+    list.innerHTML=emptyState("🐎","Nenhum cavalo cadastrado","Toque no + para adicionar o primeiro cavalo à venda.","openForm('cavalo')","Adicionar cavalo");
+    return;
+  }
+  if(!items.length){ list.innerHTML=emptyState("🔍","Nada encontrado","Tente outro filtro ou busca."); return; }
+  list.innerHTML=items.map(cavCard).join("");
+}
+function cavCard(c){
+  const photo = c.fotos&&c.fotos.length ? `<img src="${c.fotos[0]}" onclick="openLightbox('${c.id}',0)">` : `<div class="ph">🐴</div>`;
+  const nphotos = c.fotos&&c.fotos.length>1 ? `<span class="count-photos">📷 ${c.fotos.length}</span>`:"";
+  const chips=[];
+  if(c.sexo)chips.push(`<span class="chip sex-${c.sexo}">${c.sexo==="egua"?"♀ Égua":"♂ Macho"}</span>`);
+  if(c.sexo==="macho"&&c.castracao)chips.push(`<span class="chip">${c.castracao==="inteiro"?"Inteiro":"Castrado"}</span>`);
+  if(c.raca)chips.push(`<span class="chip">${esc(c.raca)}</span>`);
+  if(c.pelagem)chips.push(`<span class="chip">🎨 ${esc(c.pelagem)}</span>`);
+  if(c.idade)chips.push(`<span class="chip">${esc(c.idade)} ${Number(c.idade)===1?"ano":"anos"}</span>`);
+  if(c.docilidade)chips.push(`<span class="chip">${docLabel(c.docilidade)}</span>`);
+  const stLabel={disponivel:"● Disponível",reservado:"● Reservado",vendido:"● Vendido"}[c.status]||"";
+  const wa=waLink(c.donoContato);
+  return `<div class="card">
+    <div class="media">
+      ${photo}
+      <span class="badge ${c.status}">${stLabel}</span>
+      ${nphotos}
+    </div>
+    <div class="body">
+      <div class="head">
+        <h3 class="name">${esc(c.nome||"Sem nome")}</h3>
+        <div class="price">${c.preco?brl(c.preco):"—"}</div>
+      </div>
+      <div class="chips">${chips.join("")}</div>
+      ${c.donoNome?`<div class="owner">👤 Dono/origem: <b>${esc(c.donoNome)}</b></div>`:""}
+      ${c.obs?`<p class="obs">${esc(c.obs)}</p>`:""}
+    </div>
+    <div class="card-actions">
+      ${wa?`<button class="btn wa sm" onclick="window.open('${wa}','_blank')">💬 WhatsApp</button>`:""}
+      <button class="btn sm" onclick="openForm('cavalo','${c.id}')">✏️ Editar</button>
+      <button class="btn sm danger" onclick="del('cavalo','${c.id}')">🗑️</button>
+    </div>
+  </div>`;
+}
+
+/* ---------------- PROCURAS ---------------- */
+function procMatchesFilter(p){
+  const f=ui.procFilter,q=ui.procSearch.toLowerCase().trim();
+  if(["ativo","atendido","desistiu"].includes(f)&&p.status!==f)return false;
+  if(q){const hay=[p.nome,p.raca,(p.pelagens||[]).join(" "),p.obs].join(" ").toLowerCase();if(!hay.includes(q))return false;}
+  return true;
+}
+function renderProcuras(){
+  const list=$("#procurasList");
+  const items=state.procuras.filter(procMatchesFilter);
+  if(!state.procuras.length){
+    list.innerHTML=emptyState("🔎","Nenhuma procura cadastrada","Cadastre quem te procurou querendo comprar. O painel acha os cavalos certos.","openForm('procura')","Adicionar procura");
+    return;
+  }
+  if(!items.length){ list.innerHTML=emptyState("🔍","Nada encontrado","Tente outro filtro."); return; }
+  list.innerHTML=items.map(procCard).join("");
+}
+function procCard(p){
+  const wa=waLink(p.contato);
+  const wants=[];
+  if(p.sexo)wants.push(p.sexo==="egua"?"Égua":"Macho");
+  if(p.raca)wants.push(p.raca);
+  if(p.pelagens&&p.pelagens.length)wants.push(p.pelagens.join("/"));
+  if(p.precoMin||p.precoMax)wants.push(faixaPreco(p.precoMin,p.precoMax));
+  if(p.idadeMin||p.idadeMax)wants.push(faixaIdade(p.idadeMin,p.idadeMax));
+  const origemIc={instagram:"📸",whatsapp:"💬",outro:"📌"}[p.origem]||"";
+  let matchHtml="";
+  if(p.status==="ativo"){
+    const ms=findMatches(p).slice(0,3);
+    if(ms.length){
+      matchHtml=`<div class="match-line"><b>${ms.length}</b> cavalo(s) combinam:${ms.map(m=>miniMatch(m)).join("")}
+      <button class="link-btn" style="margin-top:8px" onclick="go('matches')">Ver todos os matches →</button></div>`;
+    }else{
+      matchHtml=`<div class="match-line" style="color:var(--ink-soft)">Nenhum cavalo disponível combina ainda.</div>`;
+    }
+  }
+  return `<div class="pcard">
+    <div class="ptop">
+      <h3 class="pname">${origemIc} ${esc(p.nome||"Interessado")}</h3>
+      <span class="pstatus ${p.status}">${({ativo:"Ativo",atendido:"Atendido",desistiu:"Desistiu"})[p.status]||""}</span>
+    </div>
+    <div class="chips" style="margin-top:8px">${wants.map(w=>`<span class="chip">${esc(w)}</span>`).join("")||'<span class="chip">Sem critérios — aceita ofertas</span>'}</div>
+    ${p.obs?`<p class="obs" style="margin-top:8px;font-size:13px;color:var(--ink-soft)">${esc(p.obs)}</p>`:""}
+    ${matchHtml}
+    <div class="card-actions" style="margin:11px -14px -13px;border-radius:0 0 var(--radius) var(--radius)">
+      ${wa?`<button class="btn wa sm" onclick="window.open('${wa}','_blank')">💬 WhatsApp</button>`:""}
+      <button class="btn sm" onclick="openForm('procura','${p.id}')">✏️ Editar</button>
+      <button class="btn sm danger" onclick="del('procura','${p.id}')">🗑️</button>
+    </div>
+  </div>`;
+}
+function faixaPreco(min,max){min=Number(min)||0;max=Number(max)||0;if(min&&max)return brl(min)+"–"+brl(max);if(max)return "até "+brl(max);if(min)return "a partir de "+brl(min);return "";}
+function faixaIdade(min,max){min=Number(min)||0;max=Number(max)||0;if(min&&max)return min+"–"+max+" anos";if(max)return "até "+max+" anos";if(min)return "a partir de "+min+" anos";return "";}
+
+/* ---------------- MATCHING ---------------- */
+/* Cruza uma procura com os cavalos disponíveis. Retorna lista pontuada. */
+function findMatches(p){
+  const disp=state.cavalos.filter(c=>c.status==="disponivel");
+  const res=[];
+  for(const c of disp){
+    let total=0, ok=0, reasons=[], hardFail=false;
+    // sexo
+    if(p.sexo){ total++; if(c.sexo===p.sexo){ok++;reasons.push("sexo");} else hardFail=true; }
+    // raça
+    if(p.raca&&p.raca.trim()){ total++; if((c.raca||"").toLowerCase().includes(p.raca.toLowerCase().trim())){ok++;reasons.push("raça");} }
+    // pelagem
+    if(p.pelagens&&p.pelagens.length){ total++; if(c.pelagem&&p.pelagens.some(x=>x.toLowerCase()===c.pelagem.toLowerCase())){ok++;reasons.push("pelagem");} }
+    // preço
+    if(p.precoMin||p.precoMax){ total++; const pr=Number(c.preco)||0; const min=Number(p.precoMin)||0,max=Number(p.precoMax)||Infinity; if(pr>=min&&pr<=max){ok++;reasons.push("preço");} }
+    // idade
+    if(p.idadeMin||p.idadeMax){ total++; const id=Number(c.idade)||0; const min=Number(p.idadeMin)||0,max=Number(p.idadeMax)||Infinity; if(c.idade!=null&&c.idade!==""&&id>=min&&id<=max){ok++;reasons.push("idade");} }
+
+    if(total===0){ // procura sem critérios: tudo combina como "aberto"
+      res.push({cavalo:c,score:0.5,total:0,ok:0,kind:"aberto",reasons:[]}); continue;
+    }
+    if(ok===0) continue; // nada bate -> não mostra
+    const kind = (ok===total && !hardFail) ? "total" : "parcial";
+    res.push({cavalo:c,score:ok/total - (hardFail?0.25:0),total,ok,kind,reasons});
+  }
+  return res.sort((a,b)=> b.score-a.score || (b.ok-a.ok));
+}
+function miniMatch(m){
+  const c=m.cavalo;
+  const img=c.fotos&&c.fotos.length?`<img src="${c.fotos[0]}" onclick="openLightbox('${c.id}',0)">`:`<div class="mph">🐴</div>`;
+  const sub=[sexLabel(c.sexo),c.pelagem,c.preco?brl(c.preco):""].filter(Boolean).join(" • ");
+  const tag=m.kind==="total"?`<span class="matchtag total">✓ Total</span>`:m.kind==="aberto"?`<span class="matchtag parcial">Aberto</span>`:`<span class="matchtag parcial">~ ${m.ok}/${m.total}</span>`;
+  return `<div class="mini-match">${img}<div class="mm-info"><div class="t">${esc(c.nome||"Sem nome")}</div><div class="s">${esc(sub)}</div></div>${tag}</div>`;
+}
+function renderMatches(){
+  const list=$("#matchesList");
+  const ativas=state.procuras.filter(p=>p.status==="ativo");
+  if(!ativas.length){ list.innerHTML=emptyState("🔗","Sem procuras ativas","Cadastre procuras de compradores para ver as combinações aqui.","go('procuras')","Ir para procuras"); return; }
+  let html="";
+  for(const p of ativas){
+    const ms=findMatches(p);
+    html+=`<div class="pcard">
+      <div class="ptop"><h3 class="pname">🔎 ${esc(p.nome||"Interessado")}</h3>
+      <span class="pstatus ${ms.length?'ativo':'desistiu'}">${ms.length?ms.length+" match"+(ms.length>1?"es":""):"0 matches"}</span></div>
+      <div class="chips" style="margin-top:8px">${
+        [p.sexo?(p.sexo==="egua"?"Égua":"Macho"):"",p.raca,(p.pelagens||[]).join("/"),faixaPreco(p.precoMin,p.precoMax),faixaIdade(p.idadeMin,p.idadeMax)].filter(Boolean).map(w=>`<span class="chip">${esc(w)}</span>`).join("")||'<span class="chip">Sem critérios</span>'
+      }</div>
+      ${ms.length?ms.map(miniMatch).join(""):'<div class="match-line" style="color:var(--ink-soft)">Nenhum cavalo disponível combina no momento.</div>'}
+      ${waLink(p.contato)?`<div style="margin-top:10px"><button class="btn wa sm block" onclick="window.open('${waLink(p.contato)}','_blank')">💬 Falar com ${esc((p.nome||"").split(" ")[0]||"interessado")}</button></div>`:""}
+    </div>`;
+  }
+  list.innerHTML=html;
+}
+function renderHot(){
+  const box=$("#hotMatches");
+  const ativas=state.procuras.filter(p=>p.status==="ativo");
+  let hot=[];
+  for(const p of ativas){ findMatches(p).filter(m=>m.kind==="total").forEach(m=>hot.push({p,m})); }
+  if(!state.cavalos.length && !state.procuras.length){
+    box.innerHTML=emptyState("👋","Bem-vindo!","Comece cadastrando seus cavalos e as procuras de quem te chama no Instagram/WhatsApp. O painel cruza tudo automaticamente.","go('cavalos')","Cadastrar primeiro cavalo");
+    return;
+  }
+  if(!hot.length){ box.innerHTML=`<div class="helpbox">Nenhuma combinação total no momento. Veja a aba <b>Matches</b> para combinações parciais.</div>`; return; }
+  box.innerHTML=hot.slice(0,6).map(({p,m})=>{
+    const c=m.cavalo;
+    const img=c.fotos&&c.fotos.length?`<img src="${c.fotos[0]}">`:`<div class="mph">🐴</div>`;
+    return `<div class="pcard" style="padding:11px 12px">
+      <div class="mini-match" style="margin:0;border:none;background:none;padding:0">
+        ${img}
+        <div class="mm-info"><div class="t">${esc(p.nome||"Interessado")} quer ${esc(c.nome||"este cavalo")}</div>
+        <div class="s">${[sexLabel(c.sexo),c.pelagem,c.preco?brl(c.preco):""].filter(Boolean).join(" • ")}</div></div>
+        <span class="matchtag total">✓ Total</span>
+      </div>
+      ${waLink(p.contato)?`<button class="btn wa sm block" style="margin-top:9px" onclick="window.open('${waLink(p.contato)}','_blank')">💬 Avisar ${esc((p.nome||"").split(" ")[0]||"")}</button>`:""}
+    </div>`;
+  }).join("");
+}
+
+function emptyState(ic,title,desc,action,actionLabel){
+  return `<div class="empty"><div class="e-ic">${ic}</div><h3>${esc(title)}</h3><p>${esc(desc)}</p>${action?`<button class="btn primary" onclick="${action}">${esc(actionLabel)}</button>`:""}</div>`;
+}
+
+/* ---------------- LIGHTBOX ---------------- */
+let lbPhotos=[],lbIndex=0;
+function openLightbox(cavId,idx){
+  const c=state.cavalos.find(x=>x.id===cavId); if(!c||!c.fotos)return;
+  lbPhotos=c.fotos; lbIndex=idx||0; $("#lbImg").src=lbPhotos[lbIndex]; $("#lightbox").classList.add("show");
+}
+function lbStep(d){ if(!lbPhotos.length)return; lbIndex=(lbIndex+d+lbPhotos.length)%lbPhotos.length; $("#lbImg").src=lbPhotos[lbIndex]; }
+function closeLightbox(){ $("#lightbox").classList.remove("show"); }
+
+/* ---------------- FORMS ---------------- */
+function openForm(type,id){
+  // se chamado pelo FAB, decide pelo contexto
+  if(!type) type = ui.view==="procuras" ? "procura" : "cavalo";
+  ui.editType=type; ui.editId=id||null;
+  const existing = id ? (type==="cavalo"?state.cavalos:state.procuras).find(x=>x.id===id) : null;
+  ui.formPhotos = existing && existing.fotos ? [...existing.fotos] : [];
+  $("#sheetTitle").textContent = (id?"Editar ":"Novo ")+(type==="cavalo"?"cavalo":"procura");
+  $("#sheetBody").innerHTML = type==="cavalo" ? cavForm(existing) : procForm(existing);
+  $("#overlay").classList.add("show");
+  document.body.style.overflow="hidden";
+  if(type==="cavalo"){
+    renderFormPhotos();
+    const cf=$("#castracaoField"); if(cf) cf.style.display = (existing&&existing.sexo==="macho") ? "block" : "none";
+  }
+}
+function closeSheet(){ $("#overlay").classList.remove("show"); document.body.style.overflow=""; }
+$("#overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeSheet(); });
+
+function segField(name,opts,val){
+  return `<div class="seg">${opts.map(o=>`<label><input type="radio" name="${name}" value="${o.v}" ${val===o.v?"checked":""}><span>${o.l}</span></label>`).join("")}</div>`;
+}
+function cavForm(c){
+  c=c||{};
+  return `
+    <div class="field">
+      <label>Fotos <span class="hint">(toque para adicionar — ficam salvas no aparelho)</span></label>
+      <div class="photos" id="photosWrap"></div>
+      <input type="file" id="photoInput" accept="image/*" multiple hidden onchange="addPhotos(event)">
+    </div>
+    <div class="field"><label>Nome / identificação</label><input type="text" id="f_nome" value="${esc(c.nome||"")}" placeholder="Ex: Relâmpago, ou 'Égua do João'"></div>
+    <div class="field"><label>Sexo</label>${segField("f_sexo",[{v:"egua",l:"♀ Égua"},{v:"macho",l:"♂ Macho"}],c.sexo)}</div>
+    <div class="field" id="castracaoField"><label>Inteiro ou castrado <span class="hint">(machos)</span></label>${segField("f_castracao",[{v:"inteiro",l:"Inteiro"},{v:"castrado",l:"Castrado"}],c.castracao)}</div>
+    <div class="row">
+      <div class="field"><label>Raça</label><input type="text" id="f_raca" value="${esc(c.raca||"")}" placeholder="Ex: Mangalarga, QM..."></div>
+      <div class="field"><label>Idade <span class="hint">(anos)</span></label><input type="number" id="f_idade" inputmode="numeric" value="${c.idade??""}" placeholder="Ex: 5"></div>
+    </div>
+    <div class="field"><label>Pelagem</label>
+      <select id="f_pelagem"><option value="">Selecione...</option>${PELAGENS.map(p=>`<option ${c.pelagem===p?"selected":""}>${p}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label>Docilidade</label>${segField("f_docilidade",[{v:"manso",l:"🟢 Manso"},{v:"intermediario",l:"🟡 Médio"},{v:"bravo",l:"🔴 Bravo"}],c.docilidade)}</div>
+    <div class="row">
+      <div class="field"><label>Preço de venda</label><input type="number" id="f_preco" inputmode="numeric" value="${c.preco??""}" placeholder="Ex: 15000"></div>
+      <div class="field"><label>Preço mínimo <span class="hint">(opcional)</span></label><input type="number" id="f_precoMin" inputmode="numeric" value="${c.precoMin??""}" placeholder="Ex: 12000"></div>
+    </div>
+    <div class="field"><label>Status</label>${segField("f_status",[{v:"disponivel",l:"Disponível"},{v:"reservado",l:"Reservado"},{v:"vendido",l:"Vendido"}],c.status||"disponivel")}</div>
+    <hr class="sep">
+    <div class="field"><label>Dono / origem <span class="hint">(se for de terceiro)</span></label><input type="text" id="f_donoNome" value="${esc(c.donoNome||"")}" placeholder="Nome de quem quer vender"></div>
+    <div class="field"><label>Contato do dono (WhatsApp)</label><input type="tel" id="f_donoContato" inputmode="tel" value="${esc(c.donoContato||"")}" placeholder="(00) 90000-0000"></div>
+    <div class="field"><label>Observações</label><textarea id="f_obs" placeholder="Andamento, doma, premiações, saúde...">${esc(c.obs||"")}</textarea></div>
+    <button class="btn primary block" style="margin-top:6px" onclick="saveCavalo()">💾 Salvar cavalo</button>
+  `;
+}
+function procForm(p){
+  p=p||{};
+  const pel = p.pelagens||[];
+  return `
+    <div class="field"><label>Nome do interessado</label><input type="text" id="f_nome" value="${esc(p.nome||"")}" placeholder="Ex: João Pereira"></div>
+    <div class="field"><label>Contato (WhatsApp)</label><input type="tel" id="f_contato" inputmode="tel" value="${esc(p.contato||"")}" placeholder="(00) 90000-0000"></div>
+    <div class="field"><label>Veio de onde?</label>${segField("f_origem",[{v:"instagram",l:"📸 Instagram"},{v:"whatsapp",l:"💬 WhatsApp"},{v:"outro",l:"📌 Outro"}],p.origem||"whatsapp")}</div>
+    <hr class="sep">
+    <p style="font-size:13px;color:var(--ink-soft);margin:0 0 12px">O que ele procura? (preencha só o que importa — o resto fica livre)</p>
+    <div class="field"><label>Quer égua ou macho?</label>${segField("f_sexo",[{v:"",l:"Tanto faz"},{v:"egua",l:"♀ Égua"},{v:"macho",l:"♂ Macho"}],p.sexo||"")}</div>
+    <div class="field"><label>Raça desejada <span class="hint">(opcional)</span></label><input type="text" id="f_raca" value="${esc(p.raca||"")}" placeholder="Ex: Mangalarga"></div>
+    <div class="field"><label>Pelagens desejadas <span class="hint">(pode marcar várias)</span></label>
+      <div class="seg compact" style="flex-wrap:wrap" id="pelChecks">${PELAGENS.map(x=>`<label><input type="checkbox" name="f_pel" value="${x}" ${pel.includes(x)?"checked":""}><span>${x}</span></label>`).join("")}</div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Preço mín.</label><input type="number" id="f_precoMin" inputmode="numeric" value="${p.precoMin??""}" placeholder="0"></div>
+      <div class="field"><label>Preço máx.</label><input type="number" id="f_precoMax" inputmode="numeric" value="${p.precoMax??""}" placeholder="Ex: 20000"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Idade mín.</label><input type="number" id="f_idadeMin" inputmode="numeric" value="${p.idadeMin??""}" placeholder="0"></div>
+      <div class="field"><label>Idade máx.</label><input type="number" id="f_idadeMax" inputmode="numeric" value="${p.idadeMax??""}" placeholder="anos"></div>
+    </div>
+    <div class="field"><label>Status</label>${segField("f_status",[{v:"ativo",l:"Ativo"},{v:"atendido",l:"Atendido"},{v:"desistiu",l:"Desistiu"}],p.status||"ativo")}</div>
+    <div class="field"><label>Observações</label><textarea id="f_obs" placeholder="Detalhes do que a pessoa falou...">${esc(p.obs||"")}</textarea></div>
+    <button class="btn primary block" style="margin-top:6px" onclick="saveProcura()">💾 Salvar procura</button>
+  `;
+}
+function getRadio(name){const el=document.querySelector(`input[name="${name}"]:checked`);return el?el.value:"";}
+
+/* ---------- Fotos (compressão p/ caber no aparelho) ---------- */
+function renderFormPhotos(){
+  const wrap=$("#photosWrap"); if(!wrap)return;
+  wrap.innerHTML = ui.formPhotos.map((src,i)=>`<div class="photo-thumb"><img src="${src}"><button class="rm" onclick="rmPhoto(${i})">✕</button></div>`).join("")
+    + `<button class="add-photo" type="button" onclick="document.getElementById('photoInput').click()">＋<small>foto</small></button>`;
+}
+function rmPhoto(i){ ui.formPhotos.splice(i,1); renderFormPhotos(); }
+function addPhotos(e){
+  const files=[...e.target.files]; e.target.value="";
+  files.forEach(f=>{
+    if(!f.type.startsWith("image/"))return;
+    const reader=new FileReader();
+    reader.onload=ev=>compressImage(ev.target.result, dataUrl=>{ ui.formPhotos.push(dataUrl); renderFormPhotos(); });
+    reader.readAsDataURL(f);
+  });
+}
+function compressImage(src,cb){
+  const img=new Image();
+  img.onload=()=>{
+    const max=1280; let{width:w,height:h}=img;
+    if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+    cv.getContext("2d").drawImage(img,0,0,w,h);
+    cb(cv.toDataURL("image/jpeg",0.72));
+  };
+  img.onerror=()=>cb(src);
+  img.src=src;
+}
+
+/* ---------------- SAVE ---------------- */
+async function saveCavalo(){
+  const obj={
+    id: ui.editId||uid(),
+    nome: $("#f_nome").value.trim(),
+    sexo: getRadio("f_sexo"),
+    castracao: getRadio("f_castracao"),
+    raca: $("#f_raca").value.trim(),
+    idade: $("#f_idade").value.trim(),
+    pelagem: $("#f_pelagem").value,
+    docilidade: getRadio("f_docilidade"),
+    preco: $("#f_preco").value.trim(),
+    precoMin: $("#f_precoMin").value.trim(),
+    status: getRadio("f_status")||"disponivel",
+    donoNome: $("#f_donoNome").value.trim(),
+    donoContato: $("#f_donoContato").value.trim(),
+    obs: $("#f_obs").value.trim(),
+    fotos: [...ui.formPhotos],
+    createdAt: ui.editId ? (state.cavalos.find(x=>x.id===ui.editId)||{}).createdAt||Date.now() : Date.now()
+  };
+  if(!obj.nome && !obj.fotos.length){ toast("Dê um nome ou adicione uma foto 🐴"); return; }
+  await dbPut("cavalos",obj);
+  await loadAll(); closeSheet(); render(); toast(ui.editId?"Cavalo atualizado ✅":"Cavalo cadastrado ✅");
+}
+async function saveProcura(){
+  const pelagens=[...document.querySelectorAll('input[name="f_pel"]:checked')].map(x=>x.value);
+  const obj={
+    id: ui.editId||uid(),
+    nome: $("#f_nome").value.trim(),
+    contato: $("#f_contato").value.trim(),
+    origem: getRadio("f_origem")||"whatsapp",
+    sexo: getRadio("f_sexo"),
+    raca: $("#f_raca").value.trim(),
+    pelagens,
+    precoMin: $("#f_precoMin").value.trim(),
+    precoMax: $("#f_precoMax").value.trim(),
+    idadeMin: $("#f_idadeMin").value.trim(),
+    idadeMax: $("#f_idadeMax").value.trim(),
+    status: getRadio("f_status")||"ativo",
+    obs: $("#f_obs").value.trim(),
+    createdAt: ui.editId ? (state.procuras.find(x=>x.id===ui.editId)||{}).createdAt||Date.now() : Date.now()
+  };
+  if(!obj.nome){ toast("Informe o nome do interessado 🙋"); return; }
+  await dbPut("procuras",obj);
+  await loadAll(); closeSheet(); render(); toast(ui.editId?"Procura atualizada ✅":"Procura cadastrada ✅");
+}
+async function del(type,id){
+  const store=type==="cavalo"?"cavalos":"procuras";
+  const item=(state[store]).find(x=>x.id===id);
+  if(!confirm("Apagar "+(type==="cavalo"?"este cavalo":"esta procura")+" definitivamente?"))return;
+  await dbDel(store,id); await loadAll(); render(); toast("Removido");
+}
+
+/* ---------------- BACKUP ---------------- */
+function exportData(){
+  const data={ app:"haras-manager", versao:1, exportadoEm:new Date().toISOString(), cavalos:state.cavalos, procuras:state.procuras };
+  const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`backup-haras-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast("Backup gerado ✅");
+}
+function importData(e){
+  const f=e.target.files[0]; e.target.value=""; if(!f)return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(data.app!=="haras-manager"&&!data.cavalos&&!data.procuras) throw new Error("formato");
+      if(!confirm("Importar este backup? Os dados atuais serão substituídos pelos do arquivo.")) return;
+      await dbClear("cavalos"); await dbClear("procuras");
+      for(const c of (data.cavalos||[])) await dbPut("cavalos",c);
+      for(const p of (data.procuras||[])) await dbPut("procuras",p);
+      await loadAll(); render(); go("inicio"); toast("Backup importado ✅");
+    }catch(err){ alert("Arquivo inválido. Selecione um backup gerado por este painel."); }
+  };
+  reader.readAsText(f);
+}
+async function wipeAll(){
+  if(!confirm("Tem certeza? Isso apaga TODOS os cavalos e procuras deste aparelho. Não dá pra desfazer."))return;
+  if(!confirm("Última confirmação: apagar tudo?"))return;
+  await dbClear("cavalos"); await dbClear("procuras"); await loadAll(); render(); toast("Tudo apagado");
+}
+
+/* ---------------- Listeners ---------------- */
+$("#searchCavalos").addEventListener("input",e=>{ui.cavSearch=e.target.value;renderCavalos();});
+$("#searchProcuras").addEventListener("input",e=>{ui.procSearch=e.target.value;renderProcuras();});
+$("#statusFilter").addEventListener("click",e=>{const b=e.target.closest(".pill");if(!b)return;ui.cavFilter=b.dataset.f;document.querySelectorAll("#statusFilter .pill").forEach(p=>p.classList.toggle("active",p===b));renderCavalos();});
+$("#procStatusFilter").addEventListener("click",e=>{const b=e.target.closest(".pill");if(!b)return;ui.procFilter=b.dataset.f;document.querySelectorAll("#procStatusFilter .pill").forEach(p=>p.classList.toggle("active",p===b));renderProcuras();});
+document.addEventListener("change",e=>{ if(e.target.name==="f_sexo"){const cf=$("#castracaoField"); if(cf) cf.style.display = e.target.value==="macho" ? "block":"none";} });
+
+/* ---------------- Boot ---------------- */
+(async function init(){
+  try{ await openDB(); await loadAll(); }
+  catch(err){ console.error(err); alert("Não foi possível abrir o banco de dados local. Tente outro navegador."); }
+  render(); go("inicio");
+})();
+</script>
+</body>
+</html>
